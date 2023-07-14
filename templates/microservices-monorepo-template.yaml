@@ -1,0 +1,182 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+# some metadata about the template itself
+metadata:
+  name: microservices-monorepo-template
+  title: Microservices Monorepo template
+  description: A Template to setup a sourceloop based monorepo on Github
+  tags:
+    - sourceloop
+    - loopback4
+    - backend
+    - monorepo
+spec:
+  owner: backstage/techdocs-core
+  type: service
+
+  # these are the steps which are rendered in the frontend with the form input
+  parameters:
+    - title: Fill in the project and repo details
+      required:
+        - name
+        - description
+        - repoUrl
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name of the repo
+          ui:autofocus: true
+          ui:options:
+            rows: 5
+        description:
+          title: Description
+          type: string
+          description: Help others understand what this project is for.
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+
+    - title: Choose the sourceloop services that you want to integrate
+      properties:
+        services:
+          title: Microservices
+          type: "array"
+          ui:widget: "checkboxes"
+          items:
+            type: "string"
+            enum:
+              - authentication-service
+              - audit-service
+              - bpmn-service
+              - chat-service
+              - feature-toggle-service
+              - in-mail-service
+              - notification-service
+              - payment-service
+              - reporting-service
+              - scheduler-service
+              - search-service
+              - video-conferencing-service
+          uniqueItems: true
+    - title: Custom services
+      properties:
+        customServices:
+          title: Custom Microservices
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+          ui:options:
+            orderable: false
+    - title: Facades
+      properties:
+        facades:
+          title: Custom facades
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+          ui:options:
+            orderable: false
+    - title: Packages
+      properties:
+        packages:
+          title: Custom Packages
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              name:
+                type: "string"
+    - title: Choose the DB Type you would use
+      required:
+        - datasourceType
+      properties:
+        datasourceType:
+          title: Datasource Type
+          type: "string"
+          enum:
+            - mysql
+            - postgres
+    - title: Issue prefix
+      required:
+        - issuePrefix
+      properties:
+        issuePrefix:
+          title: Prefix to be used for issues
+          type: "string"
+
+  # here's the steps that are executed in series in the scaffolder backend
+  steps:
+    - id: generate
+      name: Generate Scaffold
+      action: run:scaffold
+      input:
+        name: ${{ parameters.name }}
+        issuePrefix: ${{ parameters.issuePrefix }}
+        repoUrl: ${{ parameters.repoUrl | parseRepoUrl }}
+        description: ${{ parameters.description }}
+    - id: services
+      name: Add Sourceloop Services
+      if: ${{parameters.services}}
+      action: run:microservice
+      input:
+        sourceloop: true
+        facade: false
+        services: ${{ parameters.services }}
+        project: ${{ parameters.name }}
+        datasourceType: ${{ parameters.datasourceType }}
+    - id: customServices
+      name: Add Custom Services
+      if: ${{ parameters.customServices }}
+      action: run:microservice
+      input:
+        sourceloop: false
+        facade: false
+        services: ${{ parameters.customServices }}
+        project: ${{ parameters.name }}
+        datasourceType: ${{ parameters.datasourceType }}
+    - id: facades
+      name: Add Facades
+      if: ${{ parameters.facades }}
+      action: run:microservice
+      input:
+        sourceloop: false
+        facade: true
+        services: ${{ parameters.facades }}
+        project: ${{ parameters.name }}
+        datasourceType: ${{ parameters.datasourceType }}
+    - id: extensions
+      name: Add packages
+      if: ${{ parameters.packages }}
+      action: run:extension
+      input:
+        extensions: ${{ parameters.packages }}
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ["github.com"]
+        description: This is ${{ parameters.name }}
+        repoUrl: ${{ parameters.repoUrl }}
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yml"
+        optional: true
+
+  output:
+    remoteUrl: ${{ steps.publish.output.remoteUrl }}
+    entityRef: ${{ steps.register.output.entityRef }}
