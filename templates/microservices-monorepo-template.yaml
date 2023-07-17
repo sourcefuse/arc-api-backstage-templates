@@ -63,6 +63,14 @@ spec:
               - search-service
               - video-conferencing-service
           uniqueItems: true
+    - title: Include CDK
+      required:
+        - cdk
+      properties:
+        cdk:
+          title: CDK
+          type: boolean
+          default: false
     - title: Custom services
       properties:
         customServices:
@@ -132,6 +140,7 @@ spec:
       input:
         sourceloop: true
         facade: false
+        cdk: ${{parameters.cdk}}
         services: ${{ parameters.services }}
         project: ${{ parameters.name }}
         datasourceType: ${{ parameters.datasourceType }}
